@@ -39,21 +39,6 @@ function _is_within_bounds_scalar(param, lower_bound, upper_bound)
 
 end 
 
-"""
-
-Binary mutation in which a random submission is flipped.
-
-"""
-function binary_mutation(vector::BitArray)
-
-    mutant = deepcopy(vector)
-
-    index = rand(1:length(vector))
-
-    mutant[index] = 1 - mutant[index]
-    return mutant 
-
-end 
 
 """
 
