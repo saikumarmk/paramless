@@ -196,7 +196,7 @@ end
 Computes π_journal = benefit-cost, with cost = 1/(1+ϵ)^k and benefit either q_bar or rejection rate.
 
 """
-function payoff_journal(q_threshold::Real, c::Real, ϵ::Real, k::Real, submission::Array, domain::Array, quality::Bool=true)
+function payoff_journal(q_threshold::Real, c::Real, ϵ::Real, k::Real, submission::Array, domain::Array, quality::Bool)
 
     if quality
         benefit = average_quality_accepted(q_threshold, ϵ, submission, domain)
@@ -246,12 +246,18 @@ function journal_fitness(resident, mutant; kwargs...)
         domain = kwargs[:domain]
     end
 
+    if haskey(kwargs, :quality)
+        quality = kwargs[:quality]
+    else 
+        quality = true 
+    end 
+
     if mutate_qt
-        fitness_resident = payoff_journal(resident, c, ϵ, k, submission, domain)
-        fitness_mutant = payoff_journal(mutant, c, ϵ, k, submission, domain)
+        fitness_resident = payoff_journal(resident, c, ϵ, k, submission, domain,quality)
+        fitness_mutant = payoff_journal(mutant, c, ϵ, k, submission, domain,quality)
     else
-        fitness_resident = payoff_journal(q_threshold, c, resident, k, submission, domain)
-        fitness_mutant = payoff_journal(q_threshold, c, mutant, k, submission, domain)
+        fitness_resident = payoff_journal(q_threshold, c, resident, k, submission, domain,quality)
+        fitness_mutant = payoff_journal(q_threshold, c, mutant, k, submission, domain,quality)
     end
 
     return fitness_resident, fitness_mutant
@@ -347,7 +353,7 @@ function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshol
         end
 
         # compute for threshold
-        resident_q_threshold, invasion = evolution_step(resident_ϵ, journal_fitness,
+        resident_q_threshold, invasion = evolution_step(resident_q_threshold, journal_fitness,
             journal_mutation, atol;
             kwargs..., submission=resident_submission,
             ϵ=resident_ϵ, mutate_qt=true, domain=domain)
