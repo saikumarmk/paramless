@@ -41,9 +41,19 @@ end
 For a submission curve over [0,1], determine the collective payoff.
 """
 function compute_scientist_payoff_curve(domain, submission_curve, q_threshold, c, ϵ, q_bar)
-    return [payoff_scientist(domain[idx], q_threshold, c, ϵ, q_bar)
-            for idx = 1:length(domain)
-            if submission_curve[idx] == 1]
+    payoff_curve = []
+    #= Switch versioning, submission (bitstring) -> (probability curve)
+    payoff_scientist() * probability
+    =#
+    for idx = 1:length(domain)
+        if submission_curve[idx] == 1
+            push!(payoff_curve,payoff_scientist(domain[idx], q_threshold, c, ϵ, q_bar))
+        else 
+            push!(payoff_curve,0.0)
+        end
+    end
+
+    return payoff_curve
 end
 
 
@@ -72,7 +82,7 @@ function science_fitness(resident_submission, mutant_submission; kwargs...)
     if haskey(kwargs, :q_bar)
         q_bar = kwargs[:q_bar]
     end
-
+    # Add penalty to fitness  = - sum(should_not_submit) to discourage submitting when there is no incentive to, 0 if submit and payoff > 0, -payoff otherwise
     fitness_resident = sum(compute_scientist_payoff_curve(domain, resident_submission, q_threshold, c, ϵ, q_bar))
     fitness_mutant = sum(compute_scientist_payoff_curve(domain, mutant_submission, q_threshold, c, ϵ, q_bar))
 
@@ -195,6 +205,7 @@ end
 
 Computes π_journal = benefit-cost, with cost = 1/(1+ϵ)^k and benefit either q_bar or rejection rate.
 
+cost not
 """
 function payoff_journal(q_threshold::Real, c::Real, ϵ::Real, k::Real, submission::Array, domain::Array, quality::Bool)
 
