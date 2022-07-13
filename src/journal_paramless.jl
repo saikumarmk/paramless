@@ -17,7 +17,7 @@ function gaussian_j(q, q_threshold, ϵ)
 end
 
 
-function payoff_scientist(q, q_threshold, c, ϵ, q_bar, version=3)
+function payoff_scientist(q, q_threshold, c, ϵ, q_bar, version)
     #= 
     q = quality of scientist
     q_threshold = used to determine probability of acceptance 
@@ -40,19 +40,13 @@ end
 
 For a submission curve over [0,1], determine the collective payoff.
 """
-function compute_scientist_payoff_curve(domain, submission_curve, q_threshold, c, ϵ, q_bar)
+function compute_scientist_payoff_curve(domain, submission_curve, q_threshold, c, ϵ, q_bar, version)
     payoff_curve = []
     #= Switch versioning, submission (bitstring) -> (probability curve)
     payoff_scientist() * probability
     =#
     for idx = 1:length(domain)
-        push!(payoff_curve,submission_curve[idx]*payoff_scientist(domain[idx], q_threshold, c, ϵ, q_bar))
-        #=
-        if submission_curve[idx] == 1
-            push!(payoff_curve,payoff_scientist(domain[idx], q_threshold, c, ϵ, q_bar))
-        else 
-            push!(payoff_curve,0.0)
-        end=#
+        push!(payoff_curve, submission_curve[idx] * payoff_scientist(domain[idx], q_threshold, c, ϵ, q_bar, version))
     end
 
     return payoff_curve
@@ -85,8 +79,14 @@ function science_fitness(resident_submission, mutant_submission; kwargs...)
         q_bar = kwargs[:q_bar]
     end
 
-    fitness_resident = sum(compute_scientist_payoff_curve(domain, resident_submission, q_threshold, c, ϵ, q_bar))
-    fitness_mutant = sum(compute_scientist_payoff_curve(domain, mutant_submission, q_threshold, c, ϵ, q_bar))
+    if haskey(kwargs, :version)
+        version = kwargs[:version]
+    else
+        version = 3
+    end
+
+    fitness_resident = sum(compute_scientist_payoff_curve(domain, resident_submission, q_threshold, c, ϵ, q_bar, version))
+    fitness_mutant = sum(compute_scientist_payoff_curve(domain, mutant_submission, q_threshold, c, ϵ, q_bar, version))
 
     return fitness_resident, fitness_mutant
 end
@@ -135,12 +135,11 @@ function average_quality_accepted(q_threshold, ϵ, bit_vector, domain)
     (q1*e1+q2*e2+..)/(e1+e2+..)
     Computes q_bar of new batch
     =#
-    #submission_set = prepare_for_integral(bit_vector, domain) # very fucked lo
     numerator_vector = Float64[]
     denominator_vector = Float64[]
     for idx = 1:length(domain)
         noise = gaussian_j(domain[idx], q_threshold, ϵ)
-        push!(numerator_vector, noise * domain[idx]*bit_vector[idx])
+        push!(numerator_vector, noise * bit_vector[idx] * domain[idx])
         push!(denominator_vector, noise * bit_vector[idx]) # Had to change to approximate centroid
     end
 
@@ -163,10 +162,8 @@ Computes the acceptance rate.
 function acceptance_rate(q_threshold, ϵ, submission_set, domain)
     numerator_vector = Float64[]
     for (i, mask_value) in enumerate(submission_set) # How to change? 
-        if mask_value == 1 # This only works with binary mutations
-            q = domain[i] # Check the quality associated, need to change 
-            push!(numerator_vector, gaussian_j(q, q_threshold, ϵ))
-        end
+        q = domain[i] # Check the quality associated, need to change 
+        push!(numerator_vector, submission_set[i] * gaussian_j(q, q_threshold, ϵ))
     end
     numerator = sum_kbn(numerator_vector)
     denominator = sum(submission_set) # the rough length of accepted 
@@ -240,16 +237,16 @@ function journal_fitness(resident, mutant; kwargs...)
 
     if haskey(kwargs, :quality)
         quality = kwargs[:quality]
-    else 
-        quality = true 
-    end 
+    else
+        quality = true
+    end
 
     if mutate_qt
-        fitness_resident = payoff_journal(resident,ϵ, k, submission, domain,quality)
-        fitness_mutant = payoff_journal(mutant,ϵ, k, submission, domain,quality)
+        fitness_resident = payoff_journal(resident, ϵ, k, submission, domain, quality)
+        fitness_mutant = payoff_journal(mutant, ϵ, k, submission, domain, quality)
     else
-        fitness_resident = payoff_journal(q_threshold,resident, k, submission, domain,quality)
-        fitness_mutant = payoff_journal(q_threshold, mutant, k, submission, domain,quality)
+        fitness_resident = payoff_journal(q_threshold, resident, k, submission, domain, quality)
+        fitness_mutant = payoff_journal(q_threshold, mutant, k, submission, domain, quality)
     end
 
     return fitness_resident, fitness_mutant
@@ -313,9 +310,11 @@ q_bar = 0.4
 function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshold,
     iterations, atol, seed=0; kwargs...)
 
-    if haskey(kwargs,:q_bar)
-        q_bar = kwargs[:q_bar]
-    end 
+    if haskey(kwargs, :snapshot_iter)
+        snapshot_iter = kwargs[:snapshot_iter]
+    else
+        snapshot_iter = 1e3
+    end
 
     Random.seed!(seed)
 
@@ -326,11 +325,12 @@ function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshol
     previous_q_threshold = 0
     previous_ϵ = 0
 
-    time_series_q_bar = [q_bar]
+    time_series_q_bar = []
 
     for step = 1:iterations
 
-
+        q_bar = average_quality_accepted(resident_q_threshold, resident_ϵ, resident_submission, domain)
+        push!(time_series_q_bar, q_bar)
 
         # Compute and mutate science fitness at the same time,
         previous_submission = resident_submission
@@ -339,11 +339,9 @@ function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshol
         # is q_bar passed to science? This is a big issue
         resident_submission, invasion = evolution_step(resident_submission, science_fitness,
             gaussian_mutation, atol;
-            kwargs..., domain=domain, q_threshold=previous_q_threshold, ϵ=previous_ϵ,q_bar=q_bar)
+            kwargs..., domain=domain, q_threshold=previous_q_threshold, ϵ=previous_ϵ, q_bar=q_bar)
 
-        if invasion
-            push!(time_series_submission, [step, resident_submission])
-        end
+
 
         # Compute for ϵ
         resident_ϵ, invasion = evolution_step(resident_ϵ, journal_fitness,
@@ -351,28 +349,32 @@ function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshol
             kwargs..., submission=previous_submission,
             q_threshold=previous_q_threshold, mutate_qt=false, domain=domain)
 
-        if invasion
-            push!(time_series_ϵ, [step, resident_ϵ])
-        end
-
         # compute for threshold
         resident_q_threshold, invasion = evolution_step(resident_q_threshold, journal_fitness,
             journal_mutation, atol;
             kwargs..., submission=previous_submission,
             ϵ=previous_ϵ, mutate_qt=true, domain=domain)
 
-        if invasion
+        if step % snapshot_iter == 0
+            push!(time_series_submission, [step, resident_submission])
+            push!(time_series_ϵ, [step, resident_ϵ])
             push!(time_series_q_threshold, [step, resident_q_threshold])
         end
 
-        q_bar = average_quality_accepted(resident_q_threshold, resident_ϵ, resident_submission, domain)
-        push!(time_series_q_bar, q_bar)
 
     end
 
-    return resident_submission, resident_ϵ, resident_q_threshold,
-    time_series_submission, time_series_ϵ, time_series_q_threshold, time_series_q_bar
+    return Dict("resident_submission" => resident_submission,
+        "resident_ϵ" => resident_ϵ,
+        "resident_q_threshold" => resident_q_threshold,
+        "time_series_submission" => time_series_submission,
+        "time_series_ϵ" => time_series_ϵ,
+        "time_series_q_threshold" => time_series_q_threshold
+    )
 
+    #=return resident_submission, resident_ϵ, resident_q_threshold,
+    time_series_submission, time_series_ϵ, time_series_q_threshold, time_series_q_bar
+    =#
 
 end
 
@@ -387,7 +389,7 @@ function main()
 
     resident_submission, resident_ϵ, resident_q_threshold,
     time_series_resident, time_series_ϵ, time_series_q_threshold = co_evolve(domain, resident_sub, resident_eps, resident_qt,
-        5e4, 1e-8, 776; k=8.0, c=0.5, mutation_epsilon=0.01, lower_bound=0.0, q_bar=0.6)
+        5e4, 1e-8, 776; k=8.0, c=0.5, mutation_epsilon=0.01, lower_bound=0.0)
 
 end
 

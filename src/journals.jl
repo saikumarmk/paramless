@@ -371,7 +371,6 @@ function equilibrium(c; version::Int, quality::Bool, rate::Bool, k::Float64=0.1,
                 
             end
             idx += 1;
-            println("HELLO", idx);
         end
         return ans
     else
