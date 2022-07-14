@@ -23,11 +23,11 @@ if length(ARGS) > 1
     result_dict = co_evolve(domain, resident_sub,
         resident_eps, resident_qt,
         iterations, 1e-9,
-        0; k=k,
+        0, snapshot_iter; k=k,
         c=c, mutation_epsilon=sci_epsilon,
         mutation_epsilon_journal=journal_epsilon,
         lower_bound=0.0, upper_bound=1.0,
-        width=width, snapshot_iter=snapshot_iter)
+        width=width)
 
     filename = string("journal_pl_version_", version, "_c_", c, "_k_", k, "_quality_", quality,
         "_iterations_", ARGS[6], "_snapshot_iter_", ARGS[7], "_sci_epsilon_",

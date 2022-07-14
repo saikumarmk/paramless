@@ -3,7 +3,7 @@ using SpecialFunctions
 using KahanSummation
 include("paramless.jl")
 
-function gaussian_j(q, q_threshold, ϵ)
+function gaussian_j(q::Float64, q_threshold::Float64, ϵ::Float64)::Float64
 
     #edge cases:
     if q == q_threshold && ϵ == 0.0
@@ -17,7 +17,7 @@ function gaussian_j(q, q_threshold, ϵ)
 end
 
 
-function payoff_scientist(q, q_threshold, c, ϵ, q_bar, version)
+function payoff_scientist(q::Float64, q_threshold::Float64, c::Float64, ϵ::Float64, q_bar::Float64, version::Int)::Float64
     #= 
     q = quality of scientist
     q_threshold = used to determine probability of acceptance 
@@ -27,9 +27,9 @@ function payoff_scientist(q, q_threshold, c, ϵ, q_bar, version)
     p = gaussian_j(q, q_threshold, ϵ)
 
     if version == 3
-        return max(p * q_bar - (1.0 - p) * c, 0)
+        return max(p * q_bar - (1.0 - p) * c, 0.0)
     elseif version == 4
-        return max(p * q_bar - (1.0 - p) * q * c, 0)
+        return max(p * q_bar - (1.0 - p) * q * c, 0.0)
     else
         throw(ErrorException("Invalid Version, version ∈ {3,4}"))
     end
@@ -40,7 +40,7 @@ end
 
 For a submission curve over [0,1], determine the collective payoff.
 """
-function compute_scientist_payoff_curve(domain, submission_curve, q_threshold, c, ϵ, q_bar, version)
+function compute_scientist_payoff_curve(domain::Array{Float64}, submission_curve::Array{Float64}, q_threshold::Float64, c::Float64, ϵ::Float64, q_bar::Float64, version::Int)::Array{Float64}
     payoff_curve = []
     #= Switch versioning, submission (bitstring) -> (probability curve)
     payoff_scientist() * probability
@@ -58,7 +58,7 @@ end
 Compute the fitness of a submission set and its mutant.
 
 """
-function science_fitness(resident_submission, mutant_submission; kwargs...)
+function science_fitness(resident_submission::Array{Float64}, mutant_submission::Array{Float64}; kwargs...)
     if haskey(kwargs, :q_threshold)
         q_threshold = kwargs[:q_threshold]
     end
@@ -128,8 +128,9 @@ end
 
 Calculates q_bar.
 Rewrite 
+Duplicate all with gaussian_j, a vector 
 """
-function average_quality_accepted(q_threshold, ϵ, bit_vector, domain)
+function average_quality_accepted(q_threshold::Float64, ϵ::Float64, bit_vector::Array{Float64}, domain::Array{Float64})::Float64
     #=
     Produces an area curve, then computes noise 
     (q1*e1+q2*e2+..)/(e1+e2+..)
@@ -137,8 +138,8 @@ function average_quality_accepted(q_threshold, ϵ, bit_vector, domain)
     =#
     numerator_vector = Float64[]
     denominator_vector = Float64[]
-    for idx = 1:length(domain)
-        noise = gaussian_j(domain[idx], q_threshold, ϵ)
+    for idx = 1:length(domain) # we use a vector to compute a noise, same way as mutation, we measure with journal_payoff for
+        noise = gaussian_j(domain[idx], q_threshold, ϵ) # This thing has a custom curve that we evolve
         push!(numerator_vector, noise * bit_vector[idx] * domain[idx])
         push!(denominator_vector, noise * bit_vector[idx]) # Had to change to approximate centroid
     end
@@ -159,11 +160,10 @@ end
 Computes the acceptance rate.
 
 """
-function acceptance_rate(q_threshold, ϵ, submission_set, domain)
+function acceptance_rate(q_threshold::Float64, ϵ::Float64, submission_set::Array{Float64}, domain::Array{Float64})::Float64
     numerator_vector = Float64[]
-    for (i, mask_value) in enumerate(submission_set) # How to change? 
-        q = domain[i] # Check the quality associated, need to change 
-        push!(numerator_vector, submission_set[i] * gaussian_j(q, q_threshold, ϵ))
+    for idx = 1:length(submission_set) 
+        push!(numerator_vector, submission_set[idx] * gaussian_j(domain[idx], q_threshold, ϵ))
     end
     numerator = sum_kbn(numerator_vector)
     denominator = sum(submission_set) # the rough length of accepted 
@@ -179,7 +179,7 @@ end
 Computes rejection rate.
 
 """
-function rejection_rate(q_threshold, ϵ, submission_set, domain)
+function rejection_rate(q_threshold::Float64, ϵ::Float64, submission_set::Array{Float64}, domain::Array{Float64})::Float64
     return 1.0 - acceptance_rate(q_threshold, ϵ, submission_set, domain)
 end
 
@@ -189,10 +189,10 @@ Computes π_journal = benefit-cost, with cost = 1/(1+ϵ)^k and benefit either q_
 
 cost not
 """
-function payoff_journal(q_threshold::Real, ϵ::Real, k::Real, submission::Array, domain::Array, quality::Bool)
+function payoff_journal(q_threshold::Float64, ϵ::Float64, k::Float64, submission::Array, domain::Array, quality::Bool)::Float64
 
     if quality
-        benefit = average_quality_accepted(q_threshold, ϵ, submission, domain)
+        benefit = average_quality_accepted(q_threshold, ϵ, submission, domain) # Has a version that depends on a vector, submission, probability, domain
     else
         benefit = rejection_rate(q_threshold, ϵ, submission, domain)
     end
@@ -209,7 +209,7 @@ end
 Checks fitness by recomputing submission curve under new parameters.
 
 """
-function journal_fitness(resident, mutant; kwargs...)
+function journal_fitness(resident::Float64, mutant::Float64; kwargs...)
 
     if haskey(kwargs, :mutate_qt)
         mutate_qt = kwargs[:mutate_qt]
@@ -259,7 +259,7 @@ Mutates a scalar quantity for the journal.
 
 """
 
-function journal_mutation(param; kwargs...)
+function journal_mutation(param::Float64; kwargs...)::Float64
     is_inside = false
     attempt = 0
     mutant = param
@@ -292,7 +292,7 @@ function journal_mutation(param; kwargs...)
 end
 
 
-function _attempt_journal_mutation(param, mutation_epsilon)
+function _attempt_journal_mutation(param::Float64, mutation_epsilon::Float64)::Float64
     return param + rand([-1, 1], 1)[1] * mutation_epsilon
 end
 
@@ -307,16 +307,11 @@ lower_bound = 0.0
 q_bar = 0.4
 
 """
-function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshold,
-    iterations, atol, seed=0; kwargs...)
-
-    if haskey(kwargs, :snapshot_iter)
-        snapshot_iter = kwargs[:snapshot_iter]
-    else
-        snapshot_iter = 1e3
-    end
+function co_evolve(domain::Array{Float64}, resident_submission::Array{Float64}, resident_ϵ::Float64, resident_q_threshold::Float64,
+    iterations, atol::Float64, seed = 0, snapshot_iter = 1e3; kwargs...)
 
     Random.seed!(seed)
+
 
     time_series_submission = [[0, deepcopy(resident_submission)]]
     time_series_ϵ = [[0, resident_ϵ]]
@@ -325,12 +320,10 @@ function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshol
     previous_q_threshold = 0
     previous_ϵ = 0
 
-    time_series_q_bar = []
 
     for step = 1:iterations
 
         q_bar = average_quality_accepted(resident_q_threshold, resident_ϵ, resident_submission, domain)
-        push!(time_series_q_bar, q_bar)
 
         # Compute and mutate science fitness at the same time,
         previous_submission = resident_submission
@@ -372,24 +365,22 @@ function co_evolve(domain, resident_submission, resident_ϵ, resident_q_threshol
         "time_series_q_threshold" => time_series_q_threshold
     )
 
-    #=return resident_submission, resident_ϵ, resident_q_threshold,
-    time_series_submission, time_series_ϵ, time_series_q_threshold, time_series_q_bar
-    =#
-
 end
 
 
 
 function main()
 
-    domain = Array(range(0.0, 1.0, length=100))
-    resident_sub = zeros(size(domain))
-    resident_eps = 0.3
-    resident_qt = 0.4
+    domain = Array(range(0.0,1.0, length=100));
+    resident_sub = 0.01*ones(size(domain)); # 0.0, not 0, everyone submits with pr 0
+    resident_eps = 0.0
+    resident_qt = 0.0
 
-    resident_submission, resident_ϵ, resident_q_threshold,
-    time_series_resident, time_series_ϵ, time_series_q_threshold = co_evolve(domain, resident_sub, resident_eps, resident_qt,
-        5e4, 1e-8, 776; k=8.0, c=0.5, mutation_epsilon=0.01, lower_bound=0.0)
-
+    result_dict = co_evolve(domain, resident_sub, resident_eps, resident_qt,
+    1e5, 1e-9, 0, 1e3; k=8.0, 
+    c= 0.6, mutation_epsilon=0.001,mutation_epsilon_journal=0.001, 
+    lower_bound=0.0, upper_bound=1.0, 
+    width=0.01, quality=false, version=3);
+    println(result_dict)
 end
 
