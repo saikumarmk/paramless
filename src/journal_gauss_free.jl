@@ -1,6 +1,7 @@
 using Statistics
 using SpecialFunctions
 using KahanSummation
+using NumericalIntegration
 include("paramless.jl")
 
 
@@ -185,8 +186,8 @@ function payoff_journal(confusion::Array, k::Float64, submission::Array, domain:
         benefit = rejection_rate(confusion, submission)
     end
 
-    #cost = 1 / (1 + ϵ)^k
-    result = benefit #- cost
+    cost = k*(1-integrate(domain, confusion)) # Compute area of noise function, penalise strict curves
+    result = benefit - cost
 
     return result
 
