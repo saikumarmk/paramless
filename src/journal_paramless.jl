@@ -41,15 +41,10 @@ end
 For a submission curve over [0,1], determine the collective payoff.
 """
 function compute_scientist_payoff_curve(domain::Array{Float64}, submission_curve::Array{Float64}, q_threshold::Float64, c::Float64, ϵ::Float64, q_bar::Float64, version::Int)::Array{Float64}
-    payoff_curve = []
-    #= Switch versioning, submission (bitstring) -> (probability curve)
-    payoff_scientist() * probability
-    =#
-    for idx = 1:length(domain)
-        push!(payoff_curve, submission_curve[idx] * payoff_scientist(domain[idx], q_threshold, c, ϵ, q_bar, version))
-    end
 
-    return payoff_curve
+    return [submission_curve[idx] * payoff_scientist(domain[idx], q_threshold, 
+                                                        c, ϵ, 
+                                                        q_bar, version) for idx = 1:length(domain)]
 end
 
 
@@ -92,7 +87,7 @@ function science_fitness(resident_submission::Array{Float64}, mutant_submission:
 end
 
 """
-
+    binary_mutation(vector::Array; kwargs...)
 Binary mutation in which a random submission is flipped.
 
 """
@@ -108,6 +103,7 @@ function binary_mutation(vector::Array; kwargs...)
 end
 
 """
+    binary_mutations(vector::Array; kwargs...)
 
 Experimental mutation function that flips multiple scientists.
 
@@ -125,10 +121,9 @@ end
 
 
 """
+    average_quality_accepted(q_threshold::Float64, ϵ::Float64, bit_vector::Array{Float64}, domain::Array{Float64})::Float64
 
-Calculates q_bar.
-Rewrite 
-Duplicate all with gaussian_j, a vector 
+Computes q_bar for a submission curve. This is given by the discretisation of the integral of the centroid.    
 """
 function average_quality_accepted(q_threshold::Float64, ϵ::Float64, bit_vector::Array{Float64}, domain::Array{Float64})::Float64
     #=
@@ -138,13 +133,13 @@ function average_quality_accepted(q_threshold::Float64, ϵ::Float64, bit_vector:
     =#
     numerator_vector = Float64[]
     denominator_vector = Float64[]
-    for idx = 1:length(domain) # we use a vector to compute a noise, same way as mutation, we measure with journal_payoff for
-        noise = gaussian_j(domain[idx], q_threshold, ϵ) # This thing has a custom curve that we evolve
+    for idx = 1:length(domain) 
+        noise = gaussian_j(domain[idx], q_threshold, ϵ) 
         push!(numerator_vector, noise * bit_vector[idx] * domain[idx])
-        push!(denominator_vector, noise * bit_vector[idx]) # Had to change to approximate centroid
+        push!(denominator_vector, noise * bit_vector[idx])
     end
 
-    numerator = sum_kbn(numerator_vector) # sum_kbn avoids numerical error
+    numerator = sum_kbn(numerator_vector) 
     denominator = sum_kbn(denominator_vector)
 
     if denominator == 0.0
