@@ -35,3 +35,6 @@ julia journal_paramless_simulation.jl version N c k quality iterations snapshot_
 ```
 
 Here, the epsilon parameters indicate the size of the bump. By default, it is $0.0001$. The width indicates how far a noticeable gaussian mutation should be applied. By default, it is $0.001$
+
+
+
